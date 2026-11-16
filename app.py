@@ -33,9 +33,21 @@ def model_history(messages: List[ChatMessage]):
     ]
 
 
-class AgentResponse(BaseModel):
-    """Structure for agent responses"""
-    response: str = Field(description="The agent's response")
+DEFAULT_SYSTEM_PROMPT = """You are a helpful AI assistant powered by Pydantic AI and running on Ollama.
+You provide accurate, helpful, and engaging responses to user questions.
+Always be polite, informative, and concise in your responses.
+If you're uncertain about something, acknowledge the uncertainty.
+
+You have access to external tools through MCP (Model Context Protocol) when available.
+When using tools, always explain what you're doing and what the tool returned.
+
+When responding to complex questions, feel free to show your thinking process by using phrases like:
+- "Let me think about this..."
+- "I need to consider..."
+- "First, I should..."
+- "Let me analyze..."
+
+This helps users understand your reasoning process."""
 
 
 class PydanticAIWebApp:
@@ -64,23 +76,8 @@ class PydanticAIWebApp:
         self._configure_mcp()
 
         # Default system prompt if none provided
-        default_system_prompt = """You are a helpful AI assistant powered by Pydantic AI and running on Ollama.
-You provide accurate, helpful, and engaging responses to user questions.
-Always be polite, informative, and concise in your responses.
-If you're uncertain about something, acknowledge the uncertainty.
-
-You have access to external tools through MCP (Model Context Protocol) when available.
-When using tools, always explain what you're doing and what the tool returned.
-
-When responding to complex questions, feel free to show your thinking process by using phrases like:
-- "Let me think about this..."
-- "I need to consider..."
-- "First, I should..."
-- "Let me analyze..."
-
-This helps users understand your reasoning process."""
         
-        self.system_prompt = system_prompt or default_system_prompt
+        self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.skills = SkillRegistry(Path(__file__).parent / ".agents" / "skills")
         self.agent = self._create_agent()
 
@@ -220,21 +217,7 @@ def load_settings_from_file(filename: str = "orion_settings.json") -> Dict[str, 
         "ollama_url": "http://localhost:11434",
         "mcp_url": os.getenv("MCP_SERVER_URL", ""),
         "mcp_token": os.getenv("MCP_BEARER_TOKEN", ""),
-        "system_prompt": """You are a helpful AI assistant powered by Pydantic AI and running on Ollama.
-You provide accurate, helpful, and engaging responses to user questions.
-Always be polite, informative, and concise in your responses.
-If you're uncertain about something, acknowledge the uncertainty.
-
-You have access to external tools through MCP (Model Context Protocol) when available.
-When using tools, always explain what you're doing and what the tool returned.
-
-When responding to complex questions, feel free to show your thinking process by using phrases like:
-- "Let me think about this..."
-- "I need to consider..."
-- "First, I should..."
-- "Let me analyze..."
-
-This helps users understand your reasoning process."""
+        "system_prompt": DEFAULT_SYSTEM_PROMPT
     }
     
     try:
@@ -683,21 +666,7 @@ def main():
         
         with col2:
             # Reset to default button
-            default_prompt = """You are a helpful AI assistant powered by Pydantic AI and running on Ollama.
-You provide accurate, helpful, and engaging responses to user questions.
-Always be polite, informative, and concise in your responses.
-If you're uncertain about something, acknowledge the uncertainty.
-
-You have access to external tools through MCP (Model Context Protocol) when available.
-When using tools, always explain what you're doing and what the tool returned.
-
-When responding to complex questions, feel free to show your thinking process by using phrases like:
-- "Let me think about this..."
-- "I need to consider..."
-- "First, I should..."
-- "Let me analyze..."
-
-This helps users understand your reasoning process."""
+            default_prompt = DEFAULT_SYSTEM_PROMPT
             
             if st.button("🔄 Reset", use_container_width=True):
                 st.session_state.system_prompt = default_prompt
@@ -749,7 +718,6 @@ This helps users understand your reasoning process."""
         - **Framework**: Pydantic AI
         - **Ollama URL**: {st.session_state.ollama_url}/v1
         - **MCP Server**: {'Configured (not tested)' if st.session_state.app.mcp_server else 'Not configured'}
-        - **Output Type**: Structured (AgentResponse)
         - **System Prompt**: {len(st.session_state.system_prompt)} characters{settings_info}
         """)
         
