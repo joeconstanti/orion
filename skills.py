@@ -39,10 +39,11 @@ class SkillRegistry:
                 if len(raw) > MAX_BYTES:
                     raise ValueError("skill exceeds size limit")
                 text = raw.decode("utf-8")
-                parts = text.split("---", 2)
-                if len(parts) != 3 or parts[0].strip():
+                lines = text.splitlines()
+                closing = next((i for i in range(1, len(lines)) if lines[i].strip() == "---"), None)
+                if not lines or lines[0].strip() != "---" or closing is None:
                     raise ValueError("missing YAML frontmatter")
-                meta = yaml.safe_load(parts[1])
+                meta = yaml.safe_load("\n".join(lines[1:closing]))
                 if not isinstance(meta, dict):
                     raise ValueError("metadata must be a mapping")
                 name, description = meta.get("name"), meta.get("description")
@@ -50,11 +51,11 @@ class SkillRegistry:
                     raise ValueError("invalid name or directory mismatch")
                 if not isinstance(description, str) or not description.strip() or len(description) > 1024:
                     raise ValueError("invalid description")
-                body = parts[2].strip()
+                body = "\n".join(lines[closing + 1:]).strip()
                 if not body:
                     raise ValueError("empty instructions")
                 self.skills[name] = Skill(name, description.strip(), body)
-            except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+            except (OSError, UnicodeError, ValueError, RecursionError, yaml.YAMLError):
                 self.diagnostics.append(f"Skipped invalid skill: {folder.name}")
 
     def catalog(self) -> str:

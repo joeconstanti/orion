@@ -11,7 +11,7 @@ class SkillTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             folder = Path(tmp) / "example"
             folder.mkdir()
-            (folder / "SKILL.md").write_text('---\nname: example\ndescription: "Task: research"\n---\nUnique body')
+            (folder / "SKILL.md").write_text('---\nname: example\ndescription: "Task: research---evidence"\n---\nUnique body')
             registry = SkillRegistry(Path(tmp))
             self.assertIn("example", registry.catalog())
             self.assertNotIn("Unique body", registry.catalog())
