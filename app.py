@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from skills import SkillRegistry
+from diagnostics import ollama_models
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 import streamlit as st
@@ -254,35 +255,20 @@ This helps users understand your reasoning process."""
 
 
 def get_available_ollama_models(server_url: str = "http://localhost:11434"):
-    """Get list of available Ollama models"""
     try:
-        response = httpx.get(f"{server_url}/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            return [model.get("name", "") for model in models if model.get("name")]
-        else:
-            return []
+        return ollama_models(server_url)
     except Exception:
         return []
 
 
 def check_ollama_connection(server_url: str = "http://localhost:11434", model_name: str = "qwen3:14b"):
-    """Check if Ollama server is running and model is available"""
     try:
-        response = httpx.get(f"{server_url}/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            model_names = [m.get("name", "") for m in models]
-            
-            if model_name in model_names:
-                return True, f"✅ Ollama server is running and {model_name} model is available!"
-            else:
-                return False, f"⚠️ Ollama server is running but {model_name} model not found. Available models: {', '.join(model_names[:3])}{'...' if len(model_names) > 3 else ''}"
-        else:
-            return False, "❌ Ollama server is not responding properly"
-            
-    except Exception as e:
-        return False, f"❌ Cannot connect to Ollama server: {e}. Make sure Ollama is running: `ollama serve`"
+        models = ollama_models(server_url)
+        if model_name in models:
+            return True, f"✅ Ollama responded and {model_name} is listed."
+        return False, "⚠️ Ollama responded, but the selected model is not listed."
+    except Exception:
+        return False, "❌ Model discovery failed. Check the Ollama URL and service."
 
 
 def auto_focus_chat_input():
