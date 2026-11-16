@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 from skills import SkillRegistry
+from settings_store import read_settings, write_settings
 from diagnostics import ollama_models, validate_service_url
 from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field
@@ -204,21 +205,21 @@ This helps users understand your reasoning process."""
 def save_settings_to_file(settings: Dict[str, Any], filename: str = "orion_settings.json"):
     """Save settings to a JSON file"""
     try:
-        with open(filename, 'w') as f:
-            json.dump(settings, f, indent=2)
+        write_settings(settings, filename)
         return True
     except Exception as e:
-        st.error(f"Failed to save settings: {e}")
+        st.error("Failed to save settings. Check local file access and available disk space.")
         return False
 
 
 def load_settings_from_file(filename: str = "orion_settings.json") -> Dict[str, Any]:
     """Load settings from a JSON file"""
+    load_dotenv()
     default_settings = {
         "ollama_model": "qwen3:14b",
         "ollama_url": "http://localhost:11434",
-        "mcp_url": "",
-        "mcp_token": "",
+        "mcp_url": os.getenv("MCP_SERVER_URL", ""),
+        "mcp_token": os.getenv("MCP_BEARER_TOKEN", ""),
         "system_prompt": """You are a helpful AI assistant powered by Pydantic AI and running on Ollama.
 You provide accurate, helpful, and engaging responses to user questions.
 Always be polite, informative, and concise in your responses.
@@ -237,18 +238,9 @@ This helps users understand your reasoning process."""
     }
     
     try:
-        if os.path.exists(filename):
-            with open(filename, 'r') as f:
-                saved_settings = json.load(f)
-            # Merge with defaults to handle missing keys
-            for key, default_value in default_settings.items():
-                if key not in saved_settings:
-                    saved_settings[key] = default_value
-            return saved_settings
-        else:
-            return default_settings
-    except Exception as e:
-        st.warning(f"Failed to load settings file, using defaults: {e}")
+        return read_settings(filename, default_settings)
+    except (OSError, ValueError):
+        st.warning("Could not load local settings; using defaults.")
         return default_settings
 
 
@@ -363,8 +355,8 @@ def initialize_session_state():
         st.session_state.ollama_url = saved_settings["ollama_url"]
         
         # For MCP settings, prefer saved settings, but fall back to env vars if saved settings are empty
-        st.session_state.mcp_url = saved_settings["mcp_url"] or os.getenv('MCP_SERVER_URL', '')
-        st.session_state.mcp_token = saved_settings["mcp_token"] or os.getenv('MCP_BEARER_TOKEN', '')
+        st.session_state.mcp_url = saved_settings["mcp_url"]
+        st.session_state.mcp_token = saved_settings["mcp_token"]
         
         st.session_state.settings_loaded = True
     
