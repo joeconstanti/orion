@@ -311,3 +311,10 @@ If you find Orion useful, please consider giving it a star! ⭐
     <a href="https://github.com/your-username/orion/discussions">Discussions</a>
   </p>
 </div> 
+## Project skills
+
+Orion discovers trusted local skills in `.agents/skills/<name>/SKILL.md` at app startup. Each needs YAML `name` and `description`, followed by Markdown instructions. Restart Orion after installing or editing a skill. The agent sees a compact catalog and can call `activate_skill` to read the full instructions. Ask, for example: “Use source-research to compare these agent tools.” A tool-capable Ollama model is required for activation.
+
+Skills supply guidance, not new capabilities. Research needs a connected research tool; loading a skill does not install packages, execute scripts, or grant filesystem access. Keep this directory limited to reviewed skills. Symlinked skills and invalid or oversized files are excluded. Registry diagnostics are available as `app.skills.diagnostics`.
+
+Bundled skills are original Orion content under this repository's MIT license. Research and adoption decisions are recorded in [docs/agent-research.md](docs/agent-research.md).
