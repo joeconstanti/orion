@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 from skills import SkillRegistry
-from diagnostics import ollama_models
+from diagnostics import ollama_models, validate_service_url
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 import streamlit as st
@@ -47,25 +47,11 @@ class PydanticAIWebApp:
             provider=OpenAIProvider(base_url=ollama_base_url, api_key="ollama")
         )
         
-        # Initialize MCP server if configured (UI settings override env)
-        self.mcp_server = None
-        self.mcp_status = None
-        
-        # Use provided settings or fall back to environment variables
-        final_mcp_url = mcp_url or os.getenv('MCP_SERVER_URL')
-        final_mcp_token = mcp_token or os.getenv('MCP_BEARER_TOKEN')
-        
-        if final_mcp_url and final_mcp_token:
-            try:
-                # Create headers for bearer authentication
-                headers = {"Authorization": f"Bearer {final_mcp_token}"}
-                self.mcp_server = MCPToolset(final_mcp_url, headers=headers, init_timeout=10, read_timeout=30)
-                self.mcp_status = "✅ MCP server configured successfully"
-            except Exception as e:
-                self.mcp_status = f"❌ MCP server configuration failed: {str(e)}"
-        else:
-            self.mcp_status = "⚠️ MCP server not configured (missing URL or token)"
-        
+        # None uses environment defaults; an explicit empty URL disables MCP.
+        self.mcp_url = os.getenv('MCP_SERVER_URL', '') if mcp_url is None else mcp_url
+        self.mcp_token = os.getenv('MCP_BEARER_TOKEN', '') if mcp_token is None else mcp_token
+        self._configure_mcp()
+
         # Default system prompt if none provided
         default_system_prompt = """You are a helpful AI assistant powered by Pydantic AI and running on Ollama.
 You provide accurate, helpful, and engaging responses to user questions.
@@ -86,6 +72,19 @@ This helps users understand your reasoning process."""
         self.system_prompt = system_prompt or default_system_prompt
         self.skills = SkillRegistry(Path(__file__).parent / ".agents" / "skills")
         self.agent = self._create_agent()
+
+    def _configure_mcp(self):
+        self.mcp_server = None
+        if not self.mcp_url:
+            self.mcp_status = "⚠️ MCP is disabled."
+            return
+        try:
+            url = validate_service_url(self.mcp_url)
+            headers = {"Authorization": f"Bearer {self.mcp_token}"} if self.mcp_token else {}
+            self.mcp_server = MCPToolset(url, headers=headers, init_timeout=10, read_timeout=30)
+            self.mcp_status = "✅ MCP configured; connection has not been tested."
+        except Exception:
+            self.mcp_status = "❌ Invalid MCP configuration. Check the URL and authentication settings."
 
     def _create_agent(self):
         def activate_skill(name: str) -> str:
@@ -123,24 +122,13 @@ This helps users understand your reasoning process."""
                 provider=OpenAIProvider(base_url=ollama_base_url, api_key="ollama")
             )
         
-        # Update MCP settings if provided
         if mcp_url is not None or mcp_token is not None:
-            # Load environment variables as fallback
-            load_dotenv()
-            final_mcp_url = mcp_url if mcp_url else os.getenv('MCP_SERVER_URL')
-            final_mcp_token = mcp_token if mcp_token else os.getenv('MCP_BEARER_TOKEN')
-            
-            self.mcp_server = None
-            if final_mcp_url and final_mcp_token:
-                try:
-                    headers = {"Authorization": f"Bearer {final_mcp_token}"}
-                    self.mcp_server = MCPToolset(final_mcp_url, headers=headers, init_timeout=10, read_timeout=30)
-                    self.mcp_status = "✅ MCP server configured successfully"
-                except Exception as e:
-                    self.mcp_status = f"❌ MCP server configuration failed: {str(e)}"
-            else:
-                self.mcp_status = "⚠️ MCP server not configured (missing URL or token)"
-        
+            if mcp_url is not None:
+                self.mcp_url = mcp_url
+            if mcp_token is not None:
+                self.mcp_token = mcp_token
+            self._configure_mcp()
+
         # Update system prompt if provided
         if system_prompt:
             self.system_prompt = system_prompt
@@ -170,7 +158,7 @@ This helps users understand your reasoning process."""
                 return str(result.output)
                 
         except Exception as e:
-            return f"Sorry, I encountered an error: {str(e)}"
+            return "The model request failed. Check the model and server settings."
     
     async def get_streaming_response(self, message: str, conversation_history: List[ChatMessage]):
         """Stream text, separating only explicit leading think tags."""
@@ -758,7 +746,7 @@ This helps users understand your reasoning process."""
         - **Model**: {st.session_state.ollama_model} via Ollama
         - **Framework**: Pydantic AI
         - **Ollama URL**: {st.session_state.ollama_url}/v1
-        - **MCP Server**: {'Connected' if st.session_state.app.mcp_server else 'Not configured'}
+        - **MCP Server**: {'Configured (not tested)' if st.session_state.app.mcp_server else 'Not configured'}
         - **Output Type**: Structured (AgentResponse)
         - **System Prompt**: {len(st.session_state.system_prompt)} characters{settings_info}
         """)

@@ -56,3 +56,26 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(app.system_prompt, 'Keep this custom prompt')
             app.update_settings(model_name='another')
             self.assertIn('sample', app.skills.catalog())
+
+    def test_mcp_can_disable_environment_default(self):
+        with patch.dict('os.environ', {'MCP_SERVER_URL': 'http://localhost:8000/sse', 'MCP_BEARER_TOKEN': 'example'}), patch('app.load_dotenv'):
+            app = PydanticAIWebApp(mcp_url='', mcp_token='')
+            self.assertIsNone(app.mcp_server)
+            app.update_settings(mcp_url='http://localhost:8000/sse')
+            self.assertIsNotNone(app.mcp_server)
+            self.assertIn('not been tested', app.mcp_status)
+            app.update_settings(mcp_url='')
+            self.assertIsNone(app.mcp_server)
+
+    def test_invalid_mcp_url_does_not_echo_secret(self):
+        app = self.make_app()
+        app.update_settings(mcp_url='http://user:private-value@host', mcp_token='private-token')
+        self.assertIsNone(app.mcp_server)
+        self.assertNotIn('private', app.mcp_status)
+
+    async def test_model_failure_is_redacted(self):
+        from unittest.mock import AsyncMock
+        app = self.make_app()
+        app.agent = AsyncMock()
+        app.agent.run.side_effect = RuntimeError('Bearer private-token')
+        self.assertNotIn('private-token', await app.get_agent_response('Hello', []))
