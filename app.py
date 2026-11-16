@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+from pathlib import Path
+from skills import SkillRegistry
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 import streamlit as st
@@ -80,27 +82,28 @@ When responding to complex questions, feel free to show your thinking process by
 
 This helps users understand your reasoning process."""
         
-        # Create the agent with MCP server (if available) and system prompt
-        mcp_servers = [self.mcp_server] if self.mcp_server else []
-        self.agent = Agent(
-            model=self.ollama_model,
-            system_prompt=system_prompt or default_system_prompt,
-            toolsets=mcp_servers
-        )
-        
-        # Store the system prompt for reference
         self.system_prompt = system_prompt or default_system_prompt
-    
+        self.skills = SkillRegistry(Path(__file__).parent / ".agents" / "skills")
+        self.agent = self._create_agent()
+
+    def _create_agent(self):
+        def activate_skill(name: str) -> str:
+            """Load task instructions by name from the available skill catalog. Does not execute scripts."""
+            return self.skills.activate(name)
+
+        return Agent(
+            model=self.ollama_model,
+            system_prompt=self.system_prompt,
+            instructions=self.skills.catalog(),
+            tools=[activate_skill],
+            toolsets=[self.mcp_server] if self.mcp_server else [],
+        )
+
     def update_system_prompt(self, new_system_prompt: str):
         """Update the system prompt and recreate the agent"""
         self.system_prompt = new_system_prompt
-        mcp_servers = [self.mcp_server] if self.mcp_server else []
-        self.agent = Agent(
-            model=self.ollama_model,
-            system_prompt=new_system_prompt,
-            toolsets=mcp_servers
-        )
-    
+        self.agent = self._create_agent()
+
     def update_settings(self, model_name: str = None, ollama_url: str = None, 
                        mcp_url: str = None, mcp_token: str = None, system_prompt: str = None):
         """Update any combination of settings and recreate the agent"""
@@ -141,14 +144,8 @@ This helps users understand your reasoning process."""
         if system_prompt:
             self.system_prompt = system_prompt
         
-        # Recreate agent with updated settings
-        mcp_servers = [self.mcp_server] if self.mcp_server else []
-        self.agent = Agent(
-            model=self.ollama_model,
-            system_prompt=self.system_prompt,
-            toolsets=mcp_servers
-        )
-    
+        self.agent = self._create_agent()
+
     async def get_agent_response(self, message: str, conversation_history: List[ChatMessage]) -> str:
         """
         Get response from the agent

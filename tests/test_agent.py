@@ -28,3 +28,31 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         app.update_settings(model_name='other-model')
         self.assertEqual(app.model_name, 'other-model')
         self.assertEqual(app.system_prompt, 'Custom instructions')
+
+    async def test_skill_activation_through_real_agent_loop(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from pydantic_ai.models.function import FunctionModel
+        from pydantic_ai.messages import ModelResponse, ToolCallPart, TextPart, ToolReturnPart
+        from skills import SkillRegistry
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp) / 'sample'
+            folder.mkdir()
+            (folder / 'SKILL.md').write_text('---\nname: sample\ndescription: Sample task\n---\nUse source evidence.')
+            app = self.make_app()
+            app.skills = SkillRegistry(Path(tmp))
+            app.update_system_prompt('Keep this custom prompt')
+            calls = []
+            def respond(messages, info):
+                calls.append(messages)
+                returns = [p for m in messages for p in m.parts if isinstance(p, ToolReturnPart)]
+                if not returns:
+                    return ModelResponse(parts=[ToolCallPart('activate_skill', {'name': 'sample'})])
+                self.assertIn('Use source evidence.', returns[-1].content)
+                return ModelResponse(parts=[TextPart('Skill loaded')])
+            with app.agent.override(model=FunctionModel(respond)):
+                self.assertEqual(await app.get_agent_response('Use sample', []), 'Skill loaded')
+            self.assertEqual(len(calls), 2)
+            self.assertEqual(app.system_prompt, 'Keep this custom prompt')
+            app.update_settings(model_name='another')
+            self.assertIn('sample', app.skills.catalog())
