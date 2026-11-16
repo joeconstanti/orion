@@ -1,334 +1,268 @@
+# Orion
+
+<div align="center">
+
+![Made by Joe](https://img.shields.io/badge/Made%20by-Joe-red?style=for-the-badge)
+![Local AI](https://img.shields.io/badge/AI-Ollama-orange?style=for-the-badge)
+![Agent Skills](https://img.shields.io/badge/Agent-Skills-blue?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)
+
+[![Agent Checks](https://github.com/joeconstanti/orion/actions/workflows/agent-checks.yml/badge.svg)](https://github.com/joeconstanti/orion/actions/workflows/agent-checks.yml)
+[![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](LICENSE)
+
+---
+
+**Chat with Ollama models through a Streamlit interface. Add task guidance with local skills and connect external tools through MCP.**
+
+[Features](#features) • [Quick Start](#quick-start) • [Project Skills](#project-skills) • [Report Bug](https://github.com/joeconstanti/orion/issues)
+
+</div>
+
+## Features
+
+<div align="center">
+
+| Feature | What it does |
+|---------|--------------|
+| **Ollama models** | Discovers models from your configured server and uses its OpenAI-compatible endpoint |
+| **Streaming chat** | Displays replies as they arrive and passes prior chat turns to the model |
+| **Explicit thinking tags** | Separates a leading `<think>...</think>` block from the answer when the model emits one |
+| **Project skills** | Loads a compact catalog and supplies full instructions through the read-only `activate_skill` tool |
+| **Optional MCP tools** | Connects to a configured MCP server, with optional bearer authentication |
+| **Custom instructions** | Lets you edit the system prompt and change model and server settings |
+| **Local settings** | Saves configuration with atomic replacement and private file permissions on POSIX |
+| **Offline validation** | Tests agent behavior and a rendered Streamlit chat using fake models and transports |
+
+</div>
+
+Chat history is held in the Streamlit session. Settings are saved locally; chat
+history is not stored in a persistent conversation database. Ollama can run on
+this machine or another host. Connected MCP tools may use external services.
+
+## Project Skills
+
+| Skill | Outcome | Requirements |
+|-------|---------|--------------|
+| **[source-research](.agents/skills/source-research/SKILL.md)** | Source-based research with dates, direct links and stated uncertainty | Supplied sources or an available research tool |
+| **[ollama-diagnostics](.agents/skills/ollama-diagnostics/SKILL.md)** | Separates model discovery, generation and tool-support checks | Access to the configured Ollama server; optional shell probe |
+| **[mcp-setup](.agents/skills/mcp-setup/SKILL.md)** | Guides endpoint, authentication and tool-availability diagnosis | Server documentation and an available MCP client for live checks |
+| **[release-evaluation](.agents/skills/release-evaluation/SKILL.md)** | Selects relevant checks and reports their evidence limits | Repository access and Python for local validation |
+
+Ask in chat, for example: “Use source-research to compare these agent tools.”
+Orion gives the model a catalog of skill names and descriptions. A model that
+supports tool calls can request the full instructions with `activate_skill`.
+These are task instructions, not built-in slash commands.
+
+Skills do not add executable capabilities. Loading one does not run its scripts,
+install dependencies or grant access to external services. Tools come from the
+connected MCP server; Orion does not bundle the server-specific research, email,
+calendar or media tools.
+
+See the [agent research record](docs/agent-research.md) for sources and adoption
+decisions.
+
+## Technologies Used
+
+<div align="center">
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat-square&logo=streamlit&logoColor=white)
+![Markdown](https://img.shields.io/badge/Markdown-000000?style=flat-square&logo=markdown&logoColor=white)
+
+</div>
+
+| Technology | Purpose |
+|------------|---------|
+| **Python 3.11+** | Application and validation scripts; CI covers Python 3.11 and 3.12 |
+| **Streamlit** | Chat interface, sidebar settings and session state |
+| **Pydantic AI** | Agent runs, model messages, skill activation and MCP toolsets |
+| **Ollama** | Model serving through an OpenAI-compatible API |
+| **MCP** | Optional connection to external tools |
+| **PyYAML + SKILL.md** | Validated metadata and portable task guidance |
+| **HTTPX** | Timed, read-only Ollama model discovery |
+
+## Project Structure
+
 ```text
- ██████╗ ██████╗ ██╗ ██████╗ ███╗   ██╗
-██╔═══██╗██╔══██╗██║██╔═══██╗████╗  ██║
-██║   ██║██████╔╝██║██║   ██║██╔██╗ ██║
-██║   ██║██╔══██╗██║██║   ██║██║╚██╗██║
-╚██████╔╝██║  ██║██║╚██████╔╝██║ ╚████║
- ╚═════╝ ╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝
+orion/
+├── app.py                       # Streamlit UI and Pydantic AI agent
+├── skills.py                    # Local skill registry and activation
+├── streaming.py                 # Explicit thinking-tag and answer separation
+├── diagnostics.py               # Service URL validation and model discovery
+├── settings_store.py            # Validated, atomic local settings storage
+├── .agents/skills/              # Four bundled SKILL.md workflows
+├── scripts/
+│   ├── check_skills.py          # Complete bundled catalog validation
+│   └── ollama_probe.py          # Read-only model discovery CLI
+├── tests/                       # Offline agent, storage and Streamlit tests
+├── docs/agent-research.md        # Research sources and integration decisions
+├── .github/workflows/           # Python test matrix
+├── AGENTS.md                    # Coding-agent guidance
+├── CONTEXT.md                   # Project terms and boundaries
+├── requirements.txt             # Direct application dependencies
+├── requirements.lock            # Tested dependency snapshot
+└── LICENSE
 ```
 
-##  Advanced AI Chat Assistant
+## Local Development
 
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
-[![Pydantic AI](https://img.shields.io/badge/Pydantic%20AI-Latest-green.svg)](https://ai.pydantic.dev)
-[![Ollama](https://img.shields.io/badge/Ollama-Compatible-orange.svg)](https://ollama.com)
+### Quick Start
 
-A powerful, modern chat interface powered by **Pydantic AI** and **Ollama**, featuring advanced thinking visualization, MCP tool integration, and persistent settings. Experience AI conversations like never before! 🚀
+Install [Ollama](https://ollama.com) and Python 3.11 or 3.12, then set up Orion:
 
----
-
-## ✨ Key Features
-
-### 🤖 **Intelligent Chat Experience**
-- **Local AI Power**: Runs entirely on your machine with Ollama
-- **Dynamic Model Selection**: Choose from any available Ollama model
-- **Thinking Visualization**: See the AI's reasoning process in real-time
-- **Streaming Responses**: Real-time response generation with live thinking updates
-
-### 🔗 **Tool Integration**
-- **MCP Protocol Support**: Connect to external tools and services
-- **15+ Built-in Tools**: Web scraping, research, file operations, and more
-- **Transparent Tool Usage**: See exactly what tools the AI is using and why
-
-### ⚙️ **Advanced Configuration**
-- **Persistent Settings**: Your preferences survive browser refreshes
-- **Dynamic Model Management**: Auto-detect and switch between Ollama models
-- **Flexible Server Configuration**: Custom Ollama and MCP server settings
-- **System Prompt Customization**: Fine-tune AI behavior to your needs
-
-### 🎨 **Modern Interface**
-- **Beautiful UI**: Clean, responsive design with dark theme
-- **Real-time Status**: Monitor connections and model availability
-- **Collapsible Thinking**: Expandable sections for AI reasoning
-- **Chat History**: Persistent conversation memory
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-1. **Python 3.11+** - Required for MCP support
-2. **Ollama** - Local LLM runtime
-   ```bash
-   # Install from https://ollama.com
-   curl -fsSL https://ollama.com/install.sh | sh
-   ```
-
-### Installation
-
-1. **Clone & Setup**
-   ```bash
-   git clone https://github.com/your-username/orion.git
-   cd orion
-   pip install -r requirements.lock
-   ```
-
-2. **Install & Start Ollama**
-   ```bash
-   # Start Ollama server
-   ollama serve
-   
-   # Pull a model (in another terminal)
-   ollama pull qwen3:14b
-   # or try: llama3.2, mistral, codellama, etc.
-   ```
-
-3. **Launch Orion**
-   ```bash
-   streamlit run app.py
-   ```
-
-4. **Open in Browser**
-   Navigate to `http://localhost:8501` and start chatting! 🎉
-
----
-
-## 🛠️ Configuration
-
-### Easy UI Configuration
-All settings can be configured directly in the app's sidebar - no file editing required!
-
-- **🤖 Ollama Settings**: Server URL, model selection
-- **🔗 MCP Integration**: Server URL, authentication tokens  
-- **🎯 System Prompts**: Customize AI behavior
-- **💾 Auto-Save**: Settings persist across sessions
-
-### Environment Variables (Optional)
-Create a `.env` file for default MCP settings:
-
-```env
-# MCP Server Configuration (optional - can be set in UI)
-MCP_SERVER_URL=https://your-mcp-server.com/sse
-MCP_BEARER_TOKEN=your_bearer_token
+```sh
+git clone https://github.com/joeconstanti/orion.git
+cd orion
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.lock
 ```
 
----
+On Windows, activate the environment with `.venv\Scripts\activate`.
 
-## 🧠 How It Works
+Start Ollama if it is not already running:
 
-### Architecture Overview
-
-```
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│   Streamlit UI  │◄──►│ Pydantic AI  │◄──►│ Ollama Server   │
-│                 │    │              │    │                 │
-│ • Chat Interface│    │ • Agent Logic│    │ • Local LLMs    │
-│ • Settings UI   │    │ • Tool Calls │    │ • Model Mgmt    │
-│ • Status Monitor│    │ • Streaming  │    │ • GPU Accel     │
-└─────────────────┘    └──────┬───────┘    └─────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │   MCP Server     │
-                    │                  │
-                    │ • External Tools │
-                    │ • APIs & Services│
-                    │ • Data Sources   │
-                    └──────────────────┘
-```
-
-### Thinking Process Visualization
-
-Orion provides unique insight into AI reasoning:
-
-1. **🧠 Real-time Thinking**: See thoughts as they form
-2. **📝 Structured Reasoning**: Clear separation of thinking vs. response
-3. **🔍 Transparent Process**: Understand how decisions are made
-4. **⚡ Instant Feedback**: Thinking indicator appears immediately
-
----
-
-## 🎯 Available MCP Tools
-
-When connected to an MCP server, Orion provides access to powerful tools:
-
-| Tool | Description | Usage |
-|------|-------------|-------|
-| **🌐 scraperAgent** | Web content extraction | `/scrape https://example.com` |
-| **🗄️ vaultAgent** | Secure data management | `/vault store data` |
-| **📝 blogAgent** | Blog post generation | `/blog "AI trends 2024"` |
-| **🎬 comfyAgent** | Media generation | `/comfy generate image` |
-| **🔍 researchAgent** | Internet research | `/research "quantum computing"` |
-| **📊 githubAgent** | GitHub operations | `/github trending repos` |
-| **💾 Save_Memory** | Information storage | Automatic context saving |
-| **📧 Get_Emails** | Email management | Message retrieval |
-| **📁 Projects** | Project tracking | Notion integration |
-| **🔒 Hacker_News** | Tech news access | Latest tech updates |
-| **🗣️ Reddit** | Reddit integration | Community insights |
-| **📅 Calendar** | Schedule management | Google Calendar sync |
-| **🧮 calculator** | Math operations | Complex calculations |
-| **🤔 thinking_tool** | Reasoning aid | Internal logic tracking |
-
----
-
-## 💡 Usage Examples
-
-### Basic Chat
-```
-You: "What are the latest trends in AI?"
-AI: [Thinking] I should research recent developments...
-AI: Based on recent research, here are the key AI trends...
-```
-
-### Using Tools
-```
-You: "Scrape the latest news from TechCrunch"
-AI: [Thinking] I'll use the scraper tool to get current articles...
-AI: *Uses scraperAgent*
-AI: Here are the latest TechCrunch headlines...
-```
-
-### Custom System Prompts
-```
-System: You are a Python expert who always shows code examples.
-You: "How do I handle exceptions?"
-AI: [Thinking] I should provide practical Python examples...
-AI: Here's how to handle exceptions in Python:
-```
-
----
-
-## 🔧 Advanced Features
-
-### Persistent Settings
-- **Auto-save**: All configurations saved automatically
-- **Session Recovery**: Settings persist across browser refreshes  
-- **Environment Override**: UI settings take precedence over .env files
-- **Backup Safe**: Settings stored locally, not in version control
-
-### Dynamic Model Management
-- **Auto-detection**: Scans Ollama for available models
-- **Hot-swapping**: Change models without restarting
-- **Model Info**: Real-time model and server status
-- **Fallback Handling**: Graceful degradation when models unavailable
-
-### Thinking Process Engine
-- **Tag Parsing**: Understands `<think>` tags for structured reasoning
-- **Natural Language**: Detects thinking phrases automatically
-- **Stream Processing**: Real-time thinking updates
-- **Collapsible Views**: Clean interface with expandable details
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**🔴 Ollama Connection Failed**
-```bash
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
-
-# Start Ollama if needed
+```sh
 ollama serve
 ```
 
-**🔴 No Models Available**
-```bash
-# List available models
-ollama list
+In another terminal, pull the default model:
 
-# Pull a model
+```sh
 ollama pull qwen3:14b
 ```
 
-**🔴 MCP Tools Not Working**
-- Verify MCP server URL and token in sidebar
-- Check MCP server is running and accessible
-- Test connection with curl/browser
+From the activated Orion environment, start the app:
 
-**🔴 Thinking Process Not Showing**
-- Model should use `<think>` tags or natural thinking phrases
-- Check if streaming is working properly
-- Try different models for comparison
-
-### Performance Tips
-
-- **🚀 GPU Acceleration**: Ensure Ollama is using GPU if available
-- **💾 Memory Management**: Monitor RAM usage with large models
-- **🌐 Network**: Use local MCP servers for faster tool responses
-- **🔄 Model Selection**: Smaller models = faster responses
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how to get started:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-### Development Setup
-```bash
-# Clone your fork
-git clone https://github.com/your-username/orion.git
-cd orion
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.lock
-
-# Start development server
+```sh
 streamlit run app.py
 ```
 
----
+Open `http://localhost:8501`. Use the sidebar to select a model or change the
+Ollama server URL. The default server is `http://localhost:11434`.
 
-## 📄 License
+### Agent Support
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Orion discovers `.agents/skills/<name>/SKILL.md` relative to the application at
+startup. Each file needs YAML `name` and `description` fields followed by Markdown
+instructions. The name must match its directory. Restart Orion after a skill edit.
 
----
+Keep this directory limited to reviewed skills. The registry skips symlinked,
+invalid and oversized skill files, and limits the loaded catalog to 50 skills.
+Diagnostics are available through the application's `skills.diagnostics` attribute
+and the bundled catalog check below.
 
-## 🙏 Acknowledgments
+Coding agents that support `.agents/skills/` can also discover these files.
+Other clients can read the canonical SKILL.md directly. This repository does not
+install provider-specific command adapters or global skills.
 
-- **[Pydantic AI](https://ai.pydantic.dev)** - Powerful agent framework
-- **[Ollama](https://ollama.com)** - Local LLM runtime
-- **[Streamlit](https://streamlit.io)** - Beautiful web apps for ML
-- **[MCP Protocol](https://modelcontextprotocol.io)** - Tool integration standard
+### Validation
 
----
+Run from the activated environment:
 
-## 🌟 Star History
+```sh
+python -m pip check
+python -m scripts.check_skills
+python -m unittest discover -s tests -v
+python -m compileall -q app.py skills.py diagnostics.py settings_store.py streaming.py
+```
 
-If you find Orion useful, please consider giving it a star! ⭐
+The offline suite checks actual agent tool activation, history delivery,
+streaming, settings recovery and a rendered Streamlit chat with a fake model.
+CI runs the checks on Python 3.11 and 3.12. These checks do not establish live
+Ollama quality, MCP connectivity or browser layout.
+
+For model discovery alone:
+
+```sh
+python -m scripts.ollama_probe --url http://localhost:11434
+```
+
+This sends a model-list GET with a five-second timeout and returns JSON. A listed
+model does not prove generation or tool calling works.
+
+## Customization
+
+Change the Ollama model, server URL, MCP settings and system prompt in the sidebar.
+Apply settings to save them to the ignored `orion_settings.json` file.
+
+Optional MCP defaults can be supplied in an ignored `.env` file:
+
+```env
+MCP_SERVER_URL=https://your-mcp-server.example/mcp
+MCP_BEARER_TOKEN=your_bearer_token
+```
+
+Use the endpoint documented by your server. Authentication is optional when the
+server allows it. Saved values override environment defaults, including an empty
+MCP URL, which disables MCP. “Configured” means the client is set up; it does not
+mean a connection has been tested.
+
+Settings remain local plaintext. Writes use atomic replacement and owner-only
+permissions on POSIX. Keep tokens out of commits and shared logs.
+
+### Troubleshooting
+
+| Symptom | Next check |
+|---------|------------|
+| **Model discovery fails** | Check the configured URL and Ollama service, then run the probe |
+| **Selected model is absent** | Compare its exact tag with `ollama list` on the server |
+| **Skill does not activate** | Check the catalog and confirm that the selected model supports tool calls |
+| **MCP tools are unavailable** | Confirm the documented endpoint, authentication and a successful tool-list operation |
+| **No thinking block appears** | The model may return a direct answer; only explicit leading thinking tags are separated |
+| **Settings cannot be saved** | Check local file access and available disk space |
+
+## Contributing
+
+<div align="center">
+
+![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?style=for-the-badge)
+[![Issues](https://img.shields.io/badge/Issues-Welcome-red?style=for-the-badge)](https://github.com/joeconstanti/orion/issues)
+
+</div>
+
+| Step | Action |
+|------|--------|
+| **Context** | Read `AGENTS.md` and `CONTEXT.md` before changing the app |
+| **Branch** | Use a descriptive branch such as `fix/model-discovery` |
+| **Change** | Keep the change scoped and preserve user prompts and local settings |
+| **Validate** | Run the checks relevant to the changed behavior; keep automated tests independent of live services |
+| **PR** | Explain the behavior change, actual validation and any untested live behavior |
+
+Use `requirements.txt` for direct dependencies. Update and validate
+`requirements.lock` when dependencies change. Keep skills short and distinguish
+task guidance from executable tools.
+
+## Acknowledgments
+
+- [Pydantic AI](https://ai.pydantic.dev): agent framework and model integration.
+- [Ollama](https://ollama.com): model serving.
+- [Streamlit](https://streamlit.io): Python chat interface.
+- [Model Context Protocol](https://modelcontextprotocol.io): external tool integration.
+- [Agent Skills](https://agentskills.io): portable skill format and loading guidance.
+- [jstack](https://github.com/joeconstanti/jstack): README structure and presentation reference.
+
+The bundled skills are original Orion content. No upstream skill pack is vendored.
+
+## License
+
+<div align="center">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+[![Open Source](https://img.shields.io/badge/Open%20Source-Yes-green?style=for-the-badge)](https://github.com/joeconstanti/orion)
+
+</div>
+
+Orion is available under the [MIT License](LICENSE).
 
 ---
 
 <div align="center">
-  <p><strong>Built with ❤️ for the AI community</strong></p>
-  <p>
-    <a href="https://github.com/your-username/orion/issues">Report Bug</a> •
-    <a href="https://github.com/your-username/orion/issues">Request Feature</a> •
-    <a href="https://github.com/your-username/orion/discussions">Discussions</a>
-  </p>
-</div> 
-## Project skills
 
-Orion discovers trusted local skills in `.agents/skills/<name>/SKILL.md` at app startup. Each needs YAML `name` and `description`, followed by Markdown instructions. Restart Orion after installing or editing a skill. The agent sees a compact catalog and can call `activate_skill` to read the full instructions. Ask, for example: “Use source-research to compare these agent tools.” A tool-capable Ollama model is required for activation.
+[![GitHub stars](https://img.shields.io/github/stars/joeconstanti/orion?style=social)](https://github.com/joeconstanti/orion/stargazers)
 
-Skills supply guidance, not new capabilities. Research needs a connected research tool; loading a skill does not install packages, execute scripts, or grant filesystem access. Keep this directory limited to reviewed skills. Symlinked skills and invalid or oversized files are excluded. Registry diagnostics are available as `app.skills.diagnostics`.
+**Made by [Joe](https://madebyjoe.co)**
 
-Bundled skills are original Orion content under this repository's MIT license. Research and adoption decisions are recorded in [docs/agent-research.md](docs/agent-research.md).
+[GitHub](https://github.com/joeconstanti/orion) • [Report Bug](https://github.com/joeconstanti/orion/issues)
 
-
-### Agent validation
-
-Use Python 3.11 or 3.12 and the tested dependency snapshot in `requirements.lock`. Direct application dependencies are listed in `requirements.txt`; update and validate the lock with dependency changes. CI runs offline tests on both Python versions.
-
-```bash
-python -m scripts.check_skills
-python -m unittest discover -s tests -v
-```
-
-Bundled skills: `source-research`, `ollama-diagnostics`, `mcp-setup`, and `release-evaluation`. Local checks prove integration behavior with fake models and transports. They do not prove live model quality, MCP connectivity, or browser layout.
-
-Settings writes use atomic replacement and owner-only file permissions on POSIX. Settings remain local plaintext; the ignored `.env` file can supply MCP defaults. A saved empty MCP URL disables MCP even if an environment default exists.
+</div>
