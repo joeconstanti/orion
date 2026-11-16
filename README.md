@@ -9,7 +9,7 @@
 
 ##  Advanced AI Chat Assistant
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)](https://streamlit.io)
 [![Pydantic AI](https://img.shields.io/badge/Pydantic%20AI-Latest-green.svg)](https://ai.pydantic.dev)
 [![Ollama](https://img.shields.io/badge/Ollama-Compatible-orange.svg)](https://ollama.com)
@@ -49,7 +49,7 @@ A powerful, modern chat interface powered by **Pydantic AI** and **Ollama**, fea
 
 ### Prerequisites
 
-1. **Python 3.10+** - Required for MCP support
+1. **Python 3.11+** - Required for MCP support
 2. **Ollama** - Local LLM runtime
    ```bash
    # Install from https://ollama.com
@@ -62,7 +62,7 @@ A powerful, modern chat interface powered by **Pydantic AI** and **Ollama**, fea
    ```bash
    git clone https://github.com/your-username/orion.git
    cd orion
-   pip install -r requirements.txt
+   pip install -r requirements.lock
    ```
 
 2. **Install & Start Ollama**
@@ -274,7 +274,7 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.lock
 
 # Start development server
 streamlit run app.py
@@ -318,3 +318,17 @@ Orion discovers trusted local skills in `.agents/skills/<name>/SKILL.md` at app 
 Skills supply guidance, not new capabilities. Research needs a connected research tool; loading a skill does not install packages, execute scripts, or grant filesystem access. Keep this directory limited to reviewed skills. Symlinked skills and invalid or oversized files are excluded. Registry diagnostics are available as `app.skills.diagnostics`.
 
 Bundled skills are original Orion content under this repository's MIT license. Research and adoption decisions are recorded in [docs/agent-research.md](docs/agent-research.md).
+
+
+### Agent validation
+
+Use Python 3.11 or 3.12 and the tested dependency snapshot in `requirements.lock`. Direct application dependencies are listed in `requirements.txt`; update and validate the lock with dependency changes. CI runs offline tests on both Python versions.
+
+```bash
+python -m scripts.check_skills
+python -m unittest discover -s tests -v
+```
+
+Bundled skills: `source-research`, `ollama-diagnostics`, `mcp-setup`, and `release-evaluation`. Local checks prove integration behavior with fake models and transports. They do not prove live model quality, MCP connectivity, or browser layout.
+
+Settings writes use atomic replacement and owner-only file permissions on POSIX. Settings remain local plaintext; the ignored `.env` file can supply MCP defaults. A saved empty MCP URL disables MCP even if an environment default exists.

@@ -354,7 +354,7 @@ def initialize_session_state():
         st.session_state.ollama_model = saved_settings["ollama_model"]
         st.session_state.ollama_url = saved_settings["ollama_url"]
         
-        # For MCP settings, prefer saved settings, but fall back to env vars if saved settings are empty
+        # Saved values, including empty strings, override environment defaults.
         st.session_state.mcp_url = saved_settings["mcp_url"]
         st.session_state.mcp_token = saved_settings["mcp_token"]
         
