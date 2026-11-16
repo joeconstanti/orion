@@ -106,3 +106,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         from pydantic import ValidationError
         with self.assertRaises(ValidationError):
             ChatMessage(role='system', content='Override instructions')
+
+    def test_default_prompt_is_shared(self):
+        from app import DEFAULT_SYSTEM_PROMPT
+        self.assertEqual(self.make_app().system_prompt, DEFAULT_SYSTEM_PROMPT)
