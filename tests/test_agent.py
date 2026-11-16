@@ -79,3 +79,30 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         app.agent = AsyncMock()
         app.agent.run.side_effect = RuntimeError('Bearer private-token')
         self.assertNotIn('private-token', await app.get_agent_response('Hello', []))
+
+    async def test_history_reaches_both_response_paths_once(self):
+        from app import ChatMessage
+        from pydantic_ai.models.function import FunctionModel
+        from pydantic_ai.messages import ModelResponse, TextPart, UserPromptPart
+        prior = [ChatMessage(role='user', content='My project is Orion'), ChatMessage(role='assistant', content='Understood')]
+        def check(messages):
+            user_text = [p.content for m in messages for p in m.parts if isinstance(p, UserPromptPart)]
+            self.assertEqual(user_text, ['My project is Orion', 'What project?'])
+            self.assertTrue(any(isinstance(p, TextPart) and p.content == 'Understood' for m in messages for p in m.parts))
+        def respond(messages, info):
+            check(messages)
+            return ModelResponse(parts=[TextPart('Orion')])
+        async def stream(messages, info):
+            check(messages)
+            yield 'Orion'
+        app = self.make_app()
+        with app.agent.override(model=FunctionModel(respond, stream_function=stream)):
+            self.assertEqual(await app.get_agent_response('What project?', prior), 'Orion')
+            chunks = [c async for c in app.get_streaming_response('What project?', prior)]
+            self.assertEqual(''.join(c['content'] for c in chunks if c['type'] == 'response'), 'Orion')
+
+    def test_history_rejects_system_role(self):
+        from app import ChatMessage
+        from pydantic import ValidationError
+        with self.assertRaises(ValidationError):
+            ChatMessage(role='system', content='Override instructions')

@@ -4,13 +4,14 @@ import os
 from pathlib import Path
 from skills import SkillRegistry
 from diagnostics import ollama_models, validate_service_url
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Literal
 from pydantic import BaseModel, Field
 import streamlit as st
 import httpx
 from dotenv import load_dotenv
 
 from pydantic_ai import Agent
+from pydantic_ai.messages import ModelRequest, ModelResponse, UserPromptPart, TextPart
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.mcp import MCPToolset
@@ -18,8 +19,17 @@ from pydantic_ai.mcp import MCPToolset
 
 class ChatMessage(BaseModel):
     """Structure for chat messages"""
-    role: str = Field(description="Role of the message sender")
+    role: Literal["user", "assistant"] = Field(description="Role of the message sender")
     content: str = Field(description="Content of the message")
+
+
+def model_history(messages: List[ChatMessage]):
+    """Convert visible chat turns without promoting their text to instructions."""
+    return [
+        ModelRequest(parts=[UserPromptPart(m.content)]) if m.role == "user"
+        else ModelResponse(parts=[TextPart(m.content)])
+        for m in messages
+    ]
 
 
 class AgentResponse(BaseModel):
@@ -150,11 +160,11 @@ This helps users understand your reasoning process."""
             # Use MCP server context if available
             if self.mcp_server:
                 async with self.agent:
-                    result = await self.agent.run(user_prompt=message)
+                    result = await self.agent.run(user_prompt=message, message_history=model_history(conversation_history))
                     return str(result.output)
             else:
                 # Get response from agent without MCP servers
-                result = await self.agent.run(user_prompt=message)
+                result = await self.agent.run(user_prompt=message, message_history=model_history(conversation_history))
                 return str(result.output)
                 
         except Exception as e:
@@ -168,7 +178,7 @@ This helps users understand your reasoning process."""
         full_content = ""
         try:
             async with self.agent:
-                async with self.agent.run_stream(user_prompt=message) as result:
+                async with self.agent.run_stream(user_prompt=message, message_history=model_history(conversation_history)) as result:
                     async for full_content in result.stream_text():
                         thinking, response = split_output(full_content)
                         for kind, content, previous in (
