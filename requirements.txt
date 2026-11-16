@@ -1,7 +1,6 @@
-streamlit>=1.28.0
-pydantic-ai-slim[mcp]>=0.0.1
-httpx>=0.24.0
-python-dotenv>=1.0.0
-pydantic>=2.0.0
-asyncio
+streamlit==1.67.0
+pydantic-ai-slim[openai,mcp]==2.68.0
+httpx==0.28.1
+python-dotenv==1.2.4
+pydantic==2.14.3
 PyYAML==6.0.3

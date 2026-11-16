@@ -8,9 +8,9 @@ import httpx
 from dotenv import load_dotenv
 
 from pydantic_ai import Agent
-from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
-from pydantic_ai.mcp import MCPServerHTTP
+from pydantic_ai.mcp import MCPToolset
 
 
 class ChatMessage(BaseModel):
@@ -39,9 +39,9 @@ class PydanticAIWebApp:
         
         # Initialize Ollama model with OpenAI compatibility
         ollama_base_url = f"{ollama_url}/v1"
-        self.ollama_model = OpenAIModel(
+        self.ollama_model = OpenAIChatModel(
             model_name=model_name,
-            provider=OpenAIProvider(base_url=ollama_base_url)
+            provider=OpenAIProvider(base_url=ollama_base_url, api_key="ollama")
         )
         
         # Initialize MCP server if configured (UI settings override env)
@@ -56,7 +56,7 @@ class PydanticAIWebApp:
             try:
                 # Create headers for bearer authentication
                 headers = {"Authorization": f"Bearer {final_mcp_token}"}
-                self.mcp_server = MCPServerHTTP(url=final_mcp_url, headers=headers)
+                self.mcp_server = MCPToolset(final_mcp_url, headers=headers, init_timeout=10, read_timeout=30)
                 self.mcp_status = "✅ MCP server configured successfully"
             except Exception as e:
                 self.mcp_status = f"❌ MCP server configuration failed: {str(e)}"
@@ -85,7 +85,7 @@ This helps users understand your reasoning process."""
         self.agent = Agent(
             model=self.ollama_model,
             system_prompt=system_prompt or default_system_prompt,
-            mcp_servers=mcp_servers
+            toolsets=mcp_servers
         )
         
         # Store the system prompt for reference
@@ -98,7 +98,7 @@ This helps users understand your reasoning process."""
         self.agent = Agent(
             model=self.ollama_model,
             system_prompt=new_system_prompt,
-            mcp_servers=mcp_servers
+            toolsets=mcp_servers
         )
     
     def update_settings(self, model_name: str = None, ollama_url: str = None, 
@@ -114,9 +114,9 @@ This helps users understand your reasoning process."""
         # Recreate Ollama model if model or URL changed
         if model_name or ollama_url:
             ollama_base_url = f"{self.ollama_url}/v1"
-            self.ollama_model = OpenAIModel(
+            self.ollama_model = OpenAIChatModel(
                 model_name=self.model_name,
-                provider=OpenAIProvider(base_url=ollama_base_url)
+                provider=OpenAIProvider(base_url=ollama_base_url, api_key="ollama")
             )
         
         # Update MCP settings if provided
@@ -130,7 +130,7 @@ This helps users understand your reasoning process."""
             if final_mcp_url and final_mcp_token:
                 try:
                     headers = {"Authorization": f"Bearer {final_mcp_token}"}
-                    self.mcp_server = MCPServerHTTP(url=final_mcp_url, headers=headers)
+                    self.mcp_server = MCPToolset(final_mcp_url, headers=headers, init_timeout=10, read_timeout=30)
                     self.mcp_status = "✅ MCP server configured successfully"
                 except Exception as e:
                     self.mcp_status = f"❌ MCP server configuration failed: {str(e)}"
@@ -146,7 +146,7 @@ This helps users understand your reasoning process."""
         self.agent = Agent(
             model=self.ollama_model,
             system_prompt=self.system_prompt,
-            mcp_servers=mcp_servers
+            toolsets=mcp_servers
         )
     
     async def get_agent_response(self, message: str, conversation_history: List[ChatMessage]) -> str:
@@ -163,7 +163,7 @@ This helps users understand your reasoning process."""
         try:
             # Use MCP server context if available
             if self.mcp_server:
-                async with self.agent.run_mcp_servers():
+                async with self.agent:
                     result = await self.agent.run(user_prompt=message)
                     return str(result.output)
             else:
@@ -175,305 +175,34 @@ This helps users understand your reasoning process."""
             return f"Sorry, I encountered an error: {str(e)}"
     
     async def get_streaming_response(self, message: str, conversation_history: List[ChatMessage]):
-        """
-        Get streaming response from the agent with thinking/response separation
-        
-        Args:
-            message: User's input message
-            conversation_history: Previous conversation messages
-            
-        Yields:
-            Dict with 'type' (thinking/response), 'content', and 'status'
-        """
+        """Stream text, separating only explicit leading think tags."""
+        from streaming import split_output
+        sent_thinking = ""
+        sent_response = ""
+        full_content = ""
         try:
-            # Use MCP server context for streaming if available
-            if self.mcp_server:
-                async with self.agent.run_mcp_servers():
-                    async with self.agent.run_stream(user_prompt=message) as result:
-                        full_content = ""
-                        thinking_phase = True
-                        thinking_content = ""
-                        response_content = ""
-                        thinking_markers_found = False
-                        
-                        async for chunk in result.stream():
-                            # Get the current content from chunk
-                            if hasattr(chunk, 'response'):
-                                current_content = str(chunk.response) if chunk.response else ""
-                            elif hasattr(chunk, 'content'):
-                                current_content = str(chunk.content) if chunk.content else ""
-                            else:
-                                current_content = str(chunk) if chunk else ""
-                            
-                            # Only process if we have new content
-                            if current_content and len(current_content) > len(full_content):
-                                new_chunk = current_content[len(full_content):]
-                                full_content = current_content
-                                
-                                if new_chunk.strip():
-                                    # Parse thinking tags properly
-                                    lower_content = full_content.lower()
-                                    
-                                    # Check for think tags in the content
-                                    think_start = '<think>'
-                                    think_end = '</think>'
-                                    
-                                    if think_start in lower_content and think_end in lower_content:
-                                        # We have complete thinking tags, parse them
-                                        start_idx = lower_content.find(think_start)
-                                        end_idx = lower_content.find(think_end)
-                                        
-                                        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                                            # Extract thinking content (between tags)
-                                            thinking_start_pos = start_idx + len(think_start)
-                                            extracted_thinking = full_content[thinking_start_pos:end_idx]
-                                            
-                                            # Extract response content (after end tag)
-                                            response_start_pos = end_idx + len(think_end)
-                                            extracted_response = full_content[response_start_pos:].strip()
-                                            
-                                            # If we haven't sent thinking content yet, send it all
-                                            if not thinking_content and extracted_thinking:
-                                                thinking_content = extracted_thinking
-                                                yield {
-                                                    'type': 'thinking',
-                                                    'content': extracted_thinking,
-                                                    'status': 'streaming'
-                                                }
-                                                yield {
-                                                    'type': 'thinking_complete',
-                                                    'content': '',
-                                                    'status': 'complete'
-                                                }
-                                                thinking_phase = False
-                                                thinking_markers_found = True
-                                            
-                                            # Send response content if we have any and it's new
-                                            if extracted_response and len(extracted_response) > len(response_content):
-                                                new_response_chunk = extracted_response[len(response_content):]
-                                                response_content = extracted_response
-                                                yield {
-                                                    'type': 'response',
-                                                    'content': new_response_chunk,
-                                                    'status': 'streaming'
-                                                }
-                                            continue
-                                    
-                                    elif think_start in lower_content and think_end not in lower_content:
-                                        # We have start tag but no end tag yet, extract thinking content so far
-                                        start_idx = lower_content.find(think_start)
-                                        if start_idx != -1:
-                                            thinking_start_pos = start_idx + len(think_start)
-                                            current_thinking = full_content[thinking_start_pos:]
-                                            
-                                            # Send new thinking content
-                                            if len(current_thinking) > len(thinking_content):
-                                                new_thinking_chunk = current_thinking[len(thinking_content):]
-                                                thinking_content = current_thinking
-                                                yield {
-                                                    'type': 'thinking',
-                                                    'content': new_thinking_chunk,
-                                                    'status': 'streaming'
-                                                }
-                                                thinking_markers_found = True
-                                            continue
-                                    
-                                    # Fallback: if no think tags found, use natural language detection
-                                    natural_thinking_indicators = [
-                                        'let me think', 'i need to think', 'analyzing', 'considering',
-                                        'first, i should', 'let me consider', 'i should'
-                                    ]
-                                    has_natural_thinking = any(marker in lower_content for marker in natural_thinking_indicators)
-                                    
-                                    if has_natural_thinking and not thinking_markers_found:
-                                        thinking_markers_found = True
-                                    
-                                    # Another fallback: if we haven't found any thinking markers and have enough content
-                                    if not thinking_markers_found and thinking_phase and len(full_content) > 150:
-                                        thinking_phase = False
-                                        yield {
-                                            'type': 'thinking_complete',
-                                            'content': '',
-                                            'status': 'complete'
-                                        }
-                                    
-                                    # Emit the appropriate chunk type for fallback cases
-                                    if thinking_phase and not thinking_markers_found:
-                                        thinking_content += new_chunk
-                                        yield {
-                                            'type': 'thinking',
-                                            'content': new_chunk,
-                                            'status': 'streaming'
-                                        }
-                                    elif not thinking_markers_found:
-                                        response_content += new_chunk
-                                        yield {
-                                            'type': 'response',
-                                            'content': new_chunk,
-                                            'status': 'streaming'
-                                        }
-                        
-                        # Ensure thinking is marked complete if it wasn't already
-                        if thinking_phase:
-                            yield {
-                                'type': 'thinking_complete',
-                                'content': '',
-                                'status': 'complete'
-                            }
-                        
-                        # Mark final completion
-                        yield {
-                            'type': 'response_complete',
-                            'content': '',
-                            'status': 'complete'
-                        }
-            else:
-                # No MCP server - same logic but without MCP context
+            async with self.agent:
                 async with self.agent.run_stream(user_prompt=message) as result:
-                    full_content = ""
-                    thinking_phase = True
-                    thinking_content = ""
-                    response_content = ""
-                    thinking_markers_found = False
-                    
-                    async for chunk in result.stream():
-                        # Get the current content from chunk
-                        if hasattr(chunk, 'response'):
-                            current_content = str(chunk.response) if chunk.response else ""
-                        elif hasattr(chunk, 'content'):
-                            current_content = str(chunk.content) if chunk.content else ""
-                        else:
-                            current_content = str(chunk) if chunk else ""
-                        
-                        # Only process if we have new content
-                        if current_content and len(current_content) > len(full_content):
-                            new_chunk = current_content[len(full_content):]
-                            full_content = current_content
-                            
-                            if new_chunk.strip():
-                                # Parse thinking tags properly
-                                lower_content = full_content.lower()
-                                
-                                # Check for think tags in the content
-                                think_start = '<think>'
-                                think_end = '</think>'
-                                
-                                if think_start in lower_content and think_end in lower_content:
-                                    # We have complete thinking tags, parse them
-                                    start_idx = lower_content.find(think_start)
-                                    end_idx = lower_content.find(think_end)
-                                    
-                                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                                        # Extract thinking content (between tags)
-                                        thinking_start_pos = start_idx + len(think_start)
-                                        extracted_thinking = full_content[thinking_start_pos:end_idx]
-                                        
-                                        # Extract response content (after end tag)
-                                        response_start_pos = end_idx + len(think_end)
-                                        extracted_response = full_content[response_start_pos:].strip()
-                                        
-                                        # If we haven't sent thinking content yet, send it all
-                                        if not thinking_content and extracted_thinking:
-                                            thinking_content = extracted_thinking
-                                            yield {
-                                                'type': 'thinking',
-                                                'content': extracted_thinking,
-                                                'status': 'streaming'
-                                            }
-                                            yield {
-                                                'type': 'thinking_complete',
-                                                'content': '',
-                                                'status': 'complete'
-                                            }
-                                            thinking_phase = False
-                                            thinking_markers_found = True
-                                        
-                                        # Send response content if we have any and it's new
-                                        if extracted_response and len(extracted_response) > len(response_content):
-                                            new_response_chunk = extracted_response[len(response_content):]
-                                            response_content = extracted_response
-                                            yield {
-                                                'type': 'response',
-                                                'content': new_response_chunk,
-                                                'status': 'streaming'
-                                            }
-                                        continue
-                                
-                                elif think_start in lower_content and think_end not in lower_content:
-                                    # We have start tag but no end tag yet, extract thinking content so far
-                                    start_idx = lower_content.find(think_start)
-                                    if start_idx != -1:
-                                        thinking_start_pos = start_idx + len(think_start)
-                                        current_thinking = full_content[thinking_start_pos:]
-                                        
-                                        # Send new thinking content
-                                        if len(current_thinking) > len(thinking_content):
-                                            new_thinking_chunk = current_thinking[len(thinking_content):]
-                                            thinking_content = current_thinking
-                                            yield {
-                                                'type': 'thinking',
-                                                'content': new_thinking_chunk,
-                                                'status': 'streaming'
-                                            }
-                                            thinking_markers_found = True
-                                        continue
-                                
-                                # Fallback: if no think tags found, use natural language detection
-                                natural_thinking_indicators = [
-                                    'let me think', 'i need to think', 'analyzing', 'considering',
-                                    'first, i should', 'let me consider', 'i should'
-                                ]
-                                has_natural_thinking = any(marker in lower_content for marker in natural_thinking_indicators)
-                                
-                                if has_natural_thinking and not thinking_markers_found:
-                                    thinking_markers_found = True
-                                
-                                # Another fallback: if we haven't found any thinking markers and have enough content
-                                if not thinking_markers_found and thinking_phase and len(full_content) > 150:
-                                    thinking_phase = False
-                                    yield {
-                                        'type': 'thinking_complete',
-                                        'content': '',
-                                        'status': 'complete'
-                                    }
-                                
-                                # Emit the appropriate chunk type for fallback cases
-                                if thinking_phase and not thinking_markers_found:
-                                    thinking_content += new_chunk
-                                    yield {
-                                        'type': 'thinking',
-                                        'content': new_chunk,
-                                        'status': 'streaming'
-                                    }
-                                elif not thinking_markers_found:
-                                    response_content += new_chunk
-                                    yield {
-                                        'type': 'response',
-                                        'content': new_chunk,
-                                        'status': 'streaming'
-                                    }
-                    
-                    # Ensure thinking is marked complete if it wasn't already
-                    if thinking_phase:
-                        yield {
-                            'type': 'thinking_complete',
-                            'content': '',
-                            'status': 'complete'
-                        }
-                    
-                    # Mark final completion
-                    yield {
-                        'type': 'response_complete',
-                        'content': '',
-                        'status': 'complete'
-                    }
-                        
-        except Exception as e:
-            yield {
-                'type': 'error',
-                'content': f"Sorry, I encountered an error: {str(e)}",
-                'status': 'error'
-            }
+                    async for full_content in result.stream_text():
+                        thinking, response = split_output(full_content)
+                        for kind, content, previous in (
+                            ("thinking", thinking, sent_thinking),
+                            ("response", response, sent_response),
+                        ):
+                            if len(content) > len(previous):
+                                yield {"type": kind, "content": content[len(previous):], "status": "streaming"}
+                        sent_thinking, sent_response = thinking, response
+                    thinking, response = split_output(full_content, final=True)
+                    for kind, content, previous in (
+                        ("thinking", thinking, sent_thinking),
+                        ("response", response, sent_response),
+                    ):
+                        if len(content) > len(previous):
+                            yield {"type": kind, "content": content[len(previous):], "status": "streaming"}
+            yield {"type": "thinking_complete", "content": "", "status": "complete"}
+            yield {"type": "response_complete", "content": "", "status": "complete"}
+        except Exception:
+            yield {"type": "error", "content": "The model request failed. Check the model and server settings.", "status": "error"}
 
 
 def save_settings_to_file(settings: Dict[str, Any], filename: str = "orion_settings.json"):
