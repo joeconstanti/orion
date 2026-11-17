@@ -1,10 +1,12 @@
 name: Agent checks
+# PR updates run once; only main pushes run an additional integration check.
 on:
   push:
     branches: [main]
   pull_request:
 permissions:
   contents: read
+# New commits supersede the same ref, without cancelling unrelated PRs.
 concurrency:
   group: agent-checks-${{ github.ref }}
   cancel-in-progress: true
