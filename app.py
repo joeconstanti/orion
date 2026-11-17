@@ -914,22 +914,6 @@ def main():
                     # Run the streaming function
                     final_response = asyncio.run(stream_response())
                     
-                    # Fallback to non-streaming if no response received or if response seems incomplete
-                    if not final_response or not final_response.strip() or len(final_response.strip()) < 10:
-                        st.warning("⚠️ Streaming response was incomplete, using fallback method...")
-                        fallback_response = asyncio.run(
-                            st.session_state.app.get_agent_response(prompt, conversation_history)
-                        )
-                        
-                        # Update expander title and content for fallback method
-                        with thinking_expander_container.container():
-                            thinking_expander = st.expander("⚡ Used fallback method", expanded=False)
-                            thinking_placeholder = thinking_expander.empty()
-                            thinking_placeholder.markdown("*Streaming was incomplete, used non-streaming fallback*")
-                        
-                        response_placeholder.markdown(fallback_response)
-                        final_response = fallback_response
-                    
                     # Store both thinking and response in message history
                     if final_response.strip():
                         message_data = {
