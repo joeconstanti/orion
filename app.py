@@ -80,7 +80,7 @@ class PydanticAIWebApp:
 
         # Default system prompt if none provided
         
-        self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+        self.system_prompt = DEFAULT_SYSTEM_PROMPT if system_prompt is None else system_prompt
         self.skills = SkillRegistry(Path(__file__).parent / ".agents" / "skills")
         self.agent = self._create_agent()
 
@@ -141,7 +141,7 @@ class PydanticAIWebApp:
             self._configure_mcp()
 
         # Update system prompt if provided
-        if system_prompt:
+        if system_prompt is not None:
             self.system_prompt = system_prompt
         
         self.agent = self._create_agent()
@@ -639,21 +639,21 @@ def main():
             clear_history = st.checkbox("Clear chat history", value=True, help="Recommended when changing system prompt", key="clear_history_checkbox")
             
             if apply_clicked:
-                if system_prompt_draft.strip() != st.session_state.system_prompt.strip():
+                if system_prompt_draft != st.session_state.system_prompt:
                     # Save settings to file for persistence
                     settings_to_save = {
                         "ollama_model": st.session_state.ollama_model,
                         "ollama_url": st.session_state.ollama_url,
                         "mcp_url": st.session_state.mcp_url,
                         "mcp_token": st.session_state.mcp_token,
-                        "system_prompt": system_prompt_draft.strip()
+                        "system_prompt": system_prompt_draft
                     }
                     if not save_settings_to_file(settings_to_save):
                         st.stop()
-                    st.session_state.system_prompt = system_prompt_draft.strip()
+                    st.session_state.system_prompt = system_prompt_draft
                     
                     # Use the update method to ensure proper agent recreation
-                    st.session_state.app.update_system_prompt(system_prompt_draft.strip())
+                    st.session_state.app.update_system_prompt(system_prompt_draft)
                     st.success("✅ System prompt updated and saved!")
                     # Clear messages to start fresh with new prompt
                     if clear_history:
