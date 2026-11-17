@@ -24,7 +24,7 @@ class SettingsUITests(unittest.TestCase):
                     messages = [{'role': 'user', 'content': 'Keep my chat'}]
                     app.session_state['messages'] = messages.copy()
                     if action == 'settings':
-                        app.text_input(key='mcp_token_input').set_value('example-new-token')
+                        app.text_input(key='mcp_token_input').set_value('example-new-token').run(timeout=20)
                         button = next(b for b in app.button if b.key == 'apply_settings_btn')
                     elif action == 'prompt':
                         app.text_area(key='system_prompt_input').set_value('New instructions')
