@@ -172,6 +172,9 @@ streaming, settings recovery and a rendered Streamlit chat with a fake model.
 CI runs the checks on Python 3.11 and 3.12. These checks do not establish live
 Ollama quality, MCP connectivity or browser layout.
 
+See [CI and offline validation](docs/ci.md) for workflow triggers, test isolation
+and handling superseded failures.
+
 For model discovery alone:
 
 ```sh
