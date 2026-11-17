@@ -585,25 +585,21 @@ def main():
         )
         
         if st.button("🚀 Apply Settings", use_container_width=True, type="primary", disabled=not settings_changed, key="apply_settings_btn"):
-            # Update session state
-            st.session_state.ollama_url = ollama_url_input
-            if st.session_state.available_models:
-                st.session_state.ollama_model = ollama_model_input
-            else:
-                st.session_state.ollama_model = ollama_model_input
-            st.session_state.mcp_url = mcp_url_input
-            st.session_state.mcp_token = mcp_token_input
-            
-            # Save settings to file for persistence
+            # Persist the draft before changing the active session.
             settings_to_save = {
-                "ollama_model": st.session_state.ollama_model,
-                "ollama_url": st.session_state.ollama_url,
-                "mcp_url": st.session_state.mcp_url,
-                "mcp_token": st.session_state.mcp_token,
+                "ollama_model": ollama_model_input,
+                "ollama_url": ollama_url_input,
+                "mcp_url": mcp_url_input,
+                "mcp_token": mcp_token_input,
                 "system_prompt": st.session_state.system_prompt
             }
-            save_settings_to_file(settings_to_save)
-            
+            if not save_settings_to_file(settings_to_save):
+                st.stop()
+            st.session_state.ollama_url = ollama_url_input
+            st.session_state.ollama_model = ollama_model_input
+            st.session_state.mcp_url = mcp_url_input
+            st.session_state.mcp_token = mcp_token_input
+
             # Update the app instance
             st.session_state.app.update_settings(
                 model_name=st.session_state.ollama_model,
@@ -644,17 +640,17 @@ def main():
             
             if apply_clicked:
                 if system_prompt_draft != st.session_state.system_prompt:
-                    st.session_state.system_prompt = system_prompt_draft
-                    
                     # Save settings to file for persistence
                     settings_to_save = {
                         "ollama_model": st.session_state.ollama_model,
                         "ollama_url": st.session_state.ollama_url,
                         "mcp_url": st.session_state.mcp_url,
                         "mcp_token": st.session_state.mcp_token,
-                        "system_prompt": st.session_state.system_prompt
+                        "system_prompt": system_prompt_draft
                     }
-                    save_settings_to_file(settings_to_save)
+                    if not save_settings_to_file(settings_to_save):
+                        st.stop()
+                    st.session_state.system_prompt = system_prompt_draft
                     
                     # Use the update method to ensure proper agent recreation
                     st.session_state.app.update_system_prompt(system_prompt_draft)
@@ -672,17 +668,17 @@ def main():
             default_prompt = DEFAULT_SYSTEM_PROMPT
             
             if st.button("🔄 Reset", use_container_width=True):
-                st.session_state.system_prompt = default_prompt
-                
                 # Save settings to file for persistence
                 settings_to_save = {
                     "ollama_model": st.session_state.ollama_model,
                     "ollama_url": st.session_state.ollama_url,
                     "mcp_url": st.session_state.mcp_url,
                     "mcp_token": st.session_state.mcp_token,
-                    "system_prompt": st.session_state.system_prompt
+                    "system_prompt": default_prompt
                 }
-                save_settings_to_file(settings_to_save)
+                if not save_settings_to_file(settings_to_save):
+                    st.stop()
+                st.session_state.system_prompt = default_prompt
                 
                 st.session_state.app.update_system_prompt(default_prompt)
                 st.session_state.messages = []  # Clear history when resetting
