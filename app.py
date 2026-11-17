@@ -18,6 +18,9 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.mcp import MCPToolset
 
 
+MODEL_REQUEST_ERROR = "The model request failed. Check the model and server settings."
+
+
 class ChatMessage(BaseModel):
     """Structure for chat messages"""
     role: Literal["user", "assistant"] = Field(description="Role of the message sender")
@@ -166,7 +169,7 @@ class PydanticAIWebApp:
                 return str(result.output)
                 
         except Exception as e:
-            return "The model request failed. Check the model and server settings."
+            return MODEL_REQUEST_ERROR
     
     async def get_streaming_response(self, message: str, conversation_history: List[ChatMessage]):
         """Stream text, separating only explicit leading think tags."""
@@ -196,7 +199,7 @@ class PydanticAIWebApp:
             yield {"type": "thinking_complete", "content": "", "status": "complete"}
             yield {"type": "response_complete", "content": "", "status": "complete"}
         except Exception:
-            yield {"type": "error", "content": "The model request failed. Check the model and server settings.", "status": "error"}
+            yield {"type": "error", "content": MODEL_REQUEST_ERROR, "status": "error"}
 
 
 def save_settings_to_file(settings: Dict[str, Any], filename: str = "orion_settings.json"):
@@ -896,8 +899,8 @@ def main():
                                     response_placeholder.markdown("*No response generated*")
                                 
                             elif chunk_type == 'error':
-                                response_placeholder.error(chunk_content)
-                                return chunk_content
+                                response_placeholder.error(MODEL_REQUEST_ERROR)
+                                return None
                         
                         # Final check - if thinking is still active, close it
                         if thinking_active:
@@ -915,7 +918,7 @@ def main():
                     final_response = asyncio.run(stream_response())
                     
                     # Store both thinking and response in message history
-                    if final_response.strip():
+                    if final_response and final_response.strip():
                         message_data = {
                             "role": "assistant", 
                             "content": final_response,
@@ -923,13 +926,10 @@ def main():
                         }
                         st.session_state.messages.append(message_data)
                         
-                except Exception as e:
-                    error_message = f"Sorry, I encountered an error: {str(e)}"
-                    st.error(error_message)
-                    st.session_state.messages.append({
-                        "role": "assistant", 
-                        "content": error_message
-                    })
+                except Exception:
+                    # Transport exceptions can include credentials or response bodies.
+                    # A failed run is not an assistant turn for subsequent requests.
+                    st.error(MODEL_REQUEST_ERROR)
 
     # Auto-focus the chat input after all UI elements are rendered
     auto_focus_chat_input()
