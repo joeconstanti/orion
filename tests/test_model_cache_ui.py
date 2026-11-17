@@ -41,7 +41,10 @@ class ModelCacheUITests(unittest.TestCase):
                 app.run(timeout=20)
                 self.assertEqual(discovery.call_count, initial)
                 self.assertEqual(app.text_input(key='ollama_model_input_fallback').value, 'qwen3:14b')
+                app.text_input(key='ollama_model_input_fallback').set_value('manual-model:latest').run(timeout=20)
+                self.assertEqual(discovery.call_count, initial)
                 app.button(key='refresh_models_btn').click().run(timeout=20)
+                self.assertEqual(app.text_input(key='ollama_model_input_fallback').value, 'manual-model:latest')
                 self.assertEqual(discovery.call_count, initial + 1)
                 self.assertEqual(list(app.exception), [])
             finally:

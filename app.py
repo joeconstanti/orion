@@ -531,13 +531,15 @@ def main():
             refresh_models = st.button("🔄 Refresh", use_container_width=True, key="refresh_models_btn")
         
         # Get available models
-        if refresh_models or st.session_state.available_models_url != ollama_url_input:
+        models_source_changed = st.session_state.available_models_url != ollama_url_input
+        if refresh_models or models_source_changed:
             with st.spinner("Loading available models..."):
                 st.session_state.available_models = get_available_ollama_models(ollama_url_input)
                 st.session_state.available_models_url = ollama_url_input
             # A keyed selection from another server must not override its new options.
-            st.session_state.pop("ollama_model_input", None)
-            st.session_state.pop("ollama_model_input_fallback", None)
+            if models_source_changed:
+                st.session_state.pop("ollama_model_input", None)
+                st.session_state.pop("ollama_model_input_fallback", None)
         
         with col1:
             if st.session_state.available_models:
