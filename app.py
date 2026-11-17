@@ -349,6 +349,8 @@ def initialize_session_state():
     # Runtime-only settings (not persisted)
     if "available_models" not in st.session_state:
         st.session_state.available_models = []
+    if "available_models_url" not in st.session_state:
+        st.session_state.available_models_url = None
     
     # App instance
     if "app" not in st.session_state:
@@ -529,9 +531,13 @@ def main():
             refresh_models = st.button("🔄 Refresh", use_container_width=True, key="refresh_models_btn")
         
         # Get available models
-        if refresh_models or not st.session_state.available_models:
+        if refresh_models or st.session_state.available_models_url != ollama_url_input:
             with st.spinner("Loading available models..."):
                 st.session_state.available_models = get_available_ollama_models(ollama_url_input)
+                st.session_state.available_models_url = ollama_url_input
+            # A keyed selection from another server must not override its new options.
+            st.session_state.pop("ollama_model_input", None)
+            st.session_state.pop("ollama_model_input_fallback", None)
         
         with col1:
             if st.session_state.available_models:
@@ -732,7 +738,7 @@ def main():
         if st.button("🔄 Check Connection", use_container_width=True):
             st.session_state.connection_checked = False
             # Also refresh available models when checking connection
-            st.session_state.available_models = get_available_ollama_models(st.session_state.ollama_url)
+            st.session_state.available_models_url = None
             st.rerun()
         
         if st.button("🗑️ Clear Chat", use_container_width=True):
