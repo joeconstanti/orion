@@ -46,6 +46,10 @@ class ModelCacheUITests(unittest.TestCase):
                 app.button(key='refresh_models_btn').click().run(timeout=20)
                 self.assertEqual(app.text_input(key='ollama_model_input_fallback').value, 'manual-model:latest')
                 self.assertEqual(discovery.call_count, initial + 1)
+                next(b for b in app.button if b.label == '🔄 Check Connection').click().run(timeout=20)
+                self.assertEqual(app.text_input(key='ollama_model_input_fallback').value, 'manual-model:latest')
+                # One active-server connection check and one draft-server discovery.
+                self.assertEqual(discovery.call_count, initial + 3)
                 self.assertEqual(list(app.exception), [])
             finally:
                 os.chdir(original)

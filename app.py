@@ -531,8 +531,9 @@ def main():
             refresh_models = st.button("🔄 Refresh", use_container_width=True, key="refresh_models_btn")
         
         # Get available models
+        refresh_requested = st.session_state.pop("refresh_model_list", False) or refresh_models
         models_source_changed = st.session_state.available_models_url != ollama_url_input
-        if refresh_models or models_source_changed:
+        if refresh_requested or models_source_changed:
             with st.spinner("Loading available models..."):
                 st.session_state.available_models = get_available_ollama_models(ollama_url_input)
                 st.session_state.available_models_url = ollama_url_input
@@ -740,7 +741,7 @@ def main():
         if st.button("🔄 Check Connection", use_container_width=True):
             st.session_state.connection_checked = False
             # Also refresh available models when checking connection
-            st.session_state.available_models_url = None
+            st.session_state.refresh_model_list = True
             st.rerun()
         
         if st.button("🗑️ Clear Chat", use_container_width=True):
