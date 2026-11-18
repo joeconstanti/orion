@@ -1,7 +1,11 @@
 import unittest
 from unittest.mock import patch
+
+import httpx
 from pydantic_ai.models.test import TestModel
+
 from app import PydanticAIWebApp
+from diagnostics import ollama_models
 
 
 class AgentTests(unittest.IsolatedAsyncioTestCase):
@@ -28,6 +32,24 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         app.update_settings(model_name='other-model')
         self.assertEqual(app.model_name, 'other-model')
         self.assertEqual(app.system_prompt, 'Custom instructions')
+
+    def test_chat_and_discovery_share_the_ollama_base_path(self):
+        for prefix in ('', '/proxy/orion'):
+            with self.subTest(prefix=prefix):
+                url = f'http://ollama.example{prefix}/'
+
+                def list_models(request):
+                    self.assertEqual(request.url.path, f'{prefix}/api/tags')
+                    return httpx.Response(200, json={'models': []})
+
+                ollama_models(url, transport=httpx.MockTransport(list_models))
+                with patch('app.load_dotenv'):
+                    app = PydanticAIWebApp(ollama_url=url, mcp_url='')
+                updated = self.make_app()
+                updated.update_settings(ollama_url=url)
+                for configured in (app, updated):
+                    self.assertEqual(configured.ollama_url, url)
+                    self.assertEqual(configured.ollama_model.client.base_url.path, f'{prefix}/v1/')
 
     async def test_skill_activation_through_real_agent_loop(self):
         from pathlib import Path
