@@ -67,11 +67,7 @@ class PydanticAIWebApp:
         self.ollama_url = ollama_url
         
         # Initialize Ollama model with OpenAI compatibility
-        ollama_base_url = f"{ollama_url}/v1"
-        self.ollama_model = OpenAIChatModel(
-            model_name=model_name,
-            provider=OpenAIProvider(base_url=ollama_base_url, api_key="ollama")
-        )
+        self.ollama_model = self._create_ollama_model()
         
         # None uses environment defaults; an explicit empty URL disables MCP.
         self.mcp_url = os.getenv('MCP_SERVER_URL', '') if mcp_url is None else mcp_url
@@ -83,6 +79,16 @@ class PydanticAIWebApp:
         self.system_prompt = DEFAULT_SYSTEM_PROMPT if system_prompt is None else system_prompt
         self.skills = SkillRegistry(Path(__file__).parent / ".agents" / "skills")
         self.agent = self._create_agent()
+
+    @property
+    def ollama_api_url(self) -> str:
+        return f"{self.ollama_url.rstrip('/')}/v1"
+
+    def _create_ollama_model(self):
+        return OpenAIChatModel(
+            model_name=self.model_name,
+            provider=OpenAIProvider(base_url=self.ollama_api_url, api_key="ollama"),
+        )
 
     def _configure_mcp(self):
         self.mcp_server = None
@@ -127,11 +133,7 @@ class PydanticAIWebApp:
             
         # Recreate Ollama model if model or URL changed
         if model_name or ollama_url:
-            ollama_base_url = f"{self.ollama_url}/v1"
-            self.ollama_model = OpenAIChatModel(
-                model_name=self.model_name,
-                provider=OpenAIProvider(base_url=ollama_base_url, api_key="ollama")
-            )
+            self.ollama_model = self._create_ollama_model()
         
         if mcp_url is not None or mcp_token is not None:
             if mcp_url is not None:
@@ -724,7 +726,7 @@ def main():
         **Current Configuration:**
         - **Model**: {st.session_state.ollama_model} via Ollama
         - **Framework**: Pydantic AI
-        - **Ollama URL**: {st.session_state.ollama_url}/v1
+        - **Ollama URL**: {st.session_state.app.ollama_api_url}
         - **MCP Server**: {'Configured (not tested)' if st.session_state.app.mcp_server else 'Not configured'}
         - **System Prompt**: {len(st.session_state.system_prompt)} characters{settings_info}
         """)
