@@ -7,7 +7,14 @@ Use Python 3.11 or 3.12 and the pinned `requirements.lock` in a local `.venv`.
 .venv/bin/python -m pip install -r requirements.lock
 .venv/bin/python -m pip check
 .venv/bin/python -m scripts.check_skills
-.venv/bin/python -m unittest discover -s tests -v
+(
+  repo=$PWD
+  test_dir=$(mktemp -d) || exit 1
+  trap 'rm -rf -- "$test_dir"' EXIT
+  cd "$test_dir" || exit 1
+  PYTHON_DOTENV_DISABLED=1 MCP_SERVER_URL= MCP_BEARER_TOKEN= \
+    PYTHONPATH="$repo" "$repo/.venv/bin/python" -m unittest discover -s "$repo/tests" -v
+)
 .venv/bin/python -m compileall -q app.py skills.py diagnostics.py settings_store.py streaming.py
 ```
 
@@ -37,6 +44,10 @@ when there is evidence of a transient infrastructure failure.
 
 ## Deterministic Streamlit tests
 
+- The workflow starts the entire suite from a fresh working directory and
+  disables dotenv discovery. This keeps settings reads and writes away from
+  the checkout and prevents dotenv from finding a file beside `app.py`, even
+  when the working directory has already changed.
 - Use fake models and mocked discovery/transports. Tests must not need an Ollama
   service, MCP server, network access, credentials or personal settings.
 - Put settings in a temporary working directory, restore the original directory
