@@ -11,5 +11,10 @@ class StreamingTests(unittest.TestCase):
         self.assertEqual(split_output('<think>reason</thi'), ('reason', ''))
         self.assertEqual(split_output('<think>reason</think>answer'), ('reason', 'answer'))
 
+    def test_unicode_before_fragmented_mixed_case_closing_tag(self):
+        self.assertEqual(split_output('<ThInK>İstanbul</tHi'), ('İstanbul', ''))
+        self.assertEqual(split_output('<ThInK>İstanbul</tHiNk>'), ('İstanbul', ''))
+        self.assertEqual(split_output('<ThInK>İstanbul</tHiNk>answer'), ('İstanbul', 'answer'))
+
     def test_final_partial_text_is_preserved(self):
         self.assertEqual(split_output('<thi', final=True), ('', '<thi'))
