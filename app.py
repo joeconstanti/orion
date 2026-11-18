@@ -80,11 +80,14 @@ class PydanticAIWebApp:
         self.skills = SkillRegistry(Path(__file__).parent / ".agents" / "skills")
         self.agent = self._create_agent()
 
+    @property
+    def ollama_api_url(self) -> str:
+        return f"{self.ollama_url.rstrip('/')}/v1"
+
     def _create_ollama_model(self):
-        base_url = f"{self.ollama_url.rstrip('/')}/v1"
         return OpenAIChatModel(
             model_name=self.model_name,
-            provider=OpenAIProvider(base_url=base_url, api_key="ollama"),
+            provider=OpenAIProvider(base_url=self.ollama_api_url, api_key="ollama"),
         )
 
     def _configure_mcp(self):
@@ -723,7 +726,7 @@ def main():
         **Current Configuration:**
         - **Model**: {st.session_state.ollama_model} via Ollama
         - **Framework**: Pydantic AI
-        - **Ollama URL**: {str(st.session_state.app.ollama_model.client.base_url).rstrip('/')}
+        - **Ollama URL**: {st.session_state.app.ollama_api_url}
         - **MCP Server**: {'Configured (not tested)' if st.session_state.app.mcp_server else 'Not configured'}
         - **System Prompt**: {len(st.session_state.system_prompt)} characters{settings_info}
         """)
